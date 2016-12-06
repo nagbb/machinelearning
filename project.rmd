@@ -1,0 +1,100 @@
+---
+title: "Prediction Assignment"
+author: "BN"
+date: "5 December 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (section on the Weight Lifting Exercise Dataset).
+
+#Data
+The training data for this project is available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+The test data is available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+The data for this project comes from here: http://groupware.les.inf.puc-rio.br/har.
+
+#Project
+The goal of the project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. Any of the other variables may be used for prediction.
+####Downloading data
+We first download the training and testing data sets from the given URLs.
+```{r}
+training <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+testing <- read.csv("pml-testing.csv", na.strings = c("NA", ""))
+```
+####Examining the data
+We examine the data sets:
+```{r}
+dim(training)
+dim(testing)
+#head(training)
+#summary(training)
+```
+####Cleaning the data
+The data has 160 variables. 
+We clean the data by first removing the variables containing NAs.
+```{r,warning=FALSE,message=FALSE}
+training1 <- training[, colSums(is.na(training)) == 0]
+testing1 <- testing[, colSums(is.na(testing)) == 0]
+dim(training1)
+dim(testing1)
+```
+Then we remove the first seven variables which have no utility as predictor variables:
+```{r,warning=FALSE,message=FALSE}
+training2 <- training1[, -c(1:7)]
+testing2 <- testing1[, -c(1:7)]
+dim(training2)
+dim(testing2)
+```
+####Creating training and validation data from training data
+We split the cleaned training dataset into a training set (train, 70%) for prediction and a validation set (valid 30%) to compute the out-of-sample errors.
+```{r,warning=FALSE,message=FALSE}
+set.seed(1234) 
+library(caret)
+inTrain <- createDataPartition(training2$classe, p = 0.7, list = FALSE)
+train <- training2[inTrain, ]
+valid <- training2[-inTrain, ]
+dim(train);dim(valid)
+```
+####Random Forests Prediction Algorithm
+We now first try the Random Forests Prediction Algorithm:
+```{r,warning=FALSE,message=FALSE}
+library(randomForest)
+fitControl <- trainControl(method="cv", number=3, verboseIter=F)
+fit <- train(classe ~ ., data=train, method="rf", trControl=fitControl)
+saveRDS(fit, "fitsaved.RDS")
+fit = readRDS("fitsaved.RDS")
+fit$finalModel
+```
+####Model Evaluation
+We use the model to predict the label ("classe") in validation set, and obtain the confusion matrix to compare the predicted versus the actual labels:
+```{r,warning=FALSE,message=FALSE}
+preds <- predict(fit, newdata=valid)
+confusionMatrix(valid$classe, preds)
+```
+The accuracy is observed to be 99.4%. Hence the predicted accuracy for the out-of-sample error is 0.6%.Since it is an excellent result, we use Random Forests to predict on the test set.
+
+####Final Model using Random Forests Prediction Algorithm
+We use the Random Forest method on the entire training set training2, to obtain the final model
+```{r,warning=FALSE,message=FALSE}
+library(randomForest)
+fitControl <- trainControl(method="cv", number=3, verboseIter=F)
+fitfinal <- train(classe ~ ., data=training2, method="rf", trControl=fitControl)
+saveRDS(fitfinal, "fitfinalsaved.RDS")
+fitfinal = readRDS("fitfinalsaved.RDS")
+fitfinal$finalModel
+```
+
+####Using the Final Model for Prediction
+Now, we use the model fitfinal on testing2 to predict the label for "classe":
+```{r,warning=FALSE,message=FALSE}
+preds <- predict(fitfinal, newdata=testing2)
+preds <- as.character(preds)
+preds
+```
